@@ -1,13 +1,11 @@
 use bson::{doc, DateTime};
 use futures::stream::TryStreamExt;
-use macro_mongo_document::mongo_document;
 use mongodb::{Collection, Database};
 use serde::{Deserialize, Serialize};
 
 use crate::MaaResult;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[mongo_document]
 #[serde(rename_all = "camelCase")]
 pub struct ArkLevel {
     pub id: Option<String>,
@@ -74,5 +72,9 @@ impl ArkLevelRepository {
         let cursor = self.collection.find(filter_doc).await?;
         let result: Vec<ArkLevel> = cursor.try_collect().await?;
         Ok(result)
+    }
+
+    pub async fn insert_level(&self, level: ArkLevel) {
+        self.collection.insert_one(level).await.unwrap();
     }
 }

@@ -1,39 +1,35 @@
+pub mod envs;
+pub mod repository;
+
 use std::sync::Arc;
 
-use axum::{extract::State, routing::get, Router};
-use maa_backend::{
-    envs::{db_uri, log_dir, log_prefix},
-    repository::ark_level_repository::ArkLevelRepository,
-    MaaError, MaaResult,
-};
+use axum::extract::State;
+use envs::{db_uri, log_dir, log_prefix};
 use mongodb::Client;
+use repository::ark_level_repository::ArkLevelRepository;
+use thiserror::Error;
 use tracing_appender::non_blocking::WorkerGuard;
 
-pub struct AppState {
-    pub ark_level_repository: ArkLevelRepository,
-}
+pub type MaaResult<T> = Result<T, MaaError>;
 
-pub type MaaAppState = State<Arc<AppState>>;
+#[derive(Error, Debug)]
+pub enum MaaError {
+    #[error("Error getting env var: {0}")]
+    EnvError(#[from] std::env::VarError),
 
-#[tokio::main]
-async fn main() {
-    let _guard = init_logger();
+    #[error("Error serializing struct: {0}")]
+    SerializeError(#[from] bson::ser::Error),
 
-    #[allow(clippy::expect_used)]
-    let app_state = AppState::new().await.expect("Failed to create app state");
+    #[error("Error doing database operations: {0}")]
+    MongoError(#[from] mongodb::error::Error),
 
-    let app = Router::new()
-        .route("/", get(|| async { "Hello, world!" }))
-        .with_state(Arc::new(app_state));
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-
-    axum::serve(listener, app).await.unwrap();
+    #[error("No default database found")]
+    NoDefaultDBError,
 }
 
 // We expect these env vars to be set at runtime so we can call expect here
 #[allow(clippy::expect_used)]
-fn init_logger() -> WorkerGuard {
+pub fn init_logger() -> WorkerGuard {
     let log_dir = log_dir().expect("LOG_DIR is not set");
     let log_prefix = log_prefix().expect("LOG_PREFIX is not set");
 
@@ -45,8 +41,14 @@ fn init_logger() -> WorkerGuard {
     guard
 }
 
+pub struct AppState {
+    pub ark_level_repository: ArkLevelRepository,
+}
+
+pub type MaaAppState = State<Arc<AppState>>;
+
 impl AppState {
-    async fn new() -> MaaResult<Self> {
+    pub async fn new() -> MaaResult<Self> {
         let uri = db_uri()?;
         let client = Client::with_uri_str(&uri).await?;
         let db = client
