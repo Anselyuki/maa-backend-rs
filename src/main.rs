@@ -2,7 +2,7 @@ use axum::{routing::get, Router};
 
 #[tokio::main]
 async fn main() {
-    let log_writer = tracing_appender::rolling::daily("TODO/somelogdir", "TODO/somelogfile");
+    let log_writer = tracing_appender::rolling::daily("logs", "server.log");
     let (appender, _guard) = tracing_appender::non_blocking(log_writer);
 
     tracing_subscriber::fmt().with_writer(appender).init();
