@@ -36,17 +36,20 @@ pub struct GithubApi {
     client: reqwest::Client,
 }
 
-impl GithubApi {
+impl Default for GithubApi {
     /// 这个方法返回一个默认的 `GithubApi` 实例,其中不包含身份验证令牌
     ///
     /// 如果未设置,则生产的请求将不包含身份验证令牌,会有限流的风险,建议配置使用
-    pub fn default() -> GithubApi {
+    fn default() -> Self {
         GithubApi::new(
             None,
             "MaaAssistantArknights".to_string(),
             "MaaAssistantArknights".to_string(),
         )
     }
+}
+
+impl GithubApi {
     pub fn new(token: Option<String>, owner: String, repo: String) -> GithubApi {
         let mut header_map = HeaderMap::new();
         // 默认的两个请求头, 用于指定接受的数据类型和用户代理
@@ -106,7 +109,6 @@ impl GithubApi {
             "{}/repos/{}/{}/git/trees/{}",
             self.api_url, self.owner, self.repo, sha
         );
-        dbg!(url.clone());
 
         let mut request_builder = self.client.get(url).headers(self.default_headers.clone());
         if let Some(token) = &self.token {
