@@ -29,6 +29,33 @@ pub struct ArkLevel {
     pub close_time: Option<DateTime>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ArkLevelInfo {
+    pub level_id: String,
+    pub stage_id: String,
+    pub cat_one: String,
+    pub cat_two: String,
+    pub cat_three: String,
+    pub name: String,
+    pub width: i32,
+    pub height: i32,
+}
+
+impl From<ArkLevel> for ArkLevelInfo {
+    fn from(val: ArkLevel) -> Self {
+        ArkLevelInfo {
+            level_id: val.level_id.unwrap_or_default(),
+            stage_id: val.stage_id.unwrap_or_default(),
+            cat_one: val.cat_one.unwrap_or_default(),
+            cat_two: val.cat_two.unwrap_or_default(),
+            cat_three: val.cat_three.unwrap_or_default(),
+            name: val.name.unwrap_or_default(),
+            width: val.width,
+            height: val.height,
+        }
+    }
+}
+
 impl Default for ArkLevel {
     fn default() -> Self {
         Self {
@@ -56,6 +83,12 @@ impl ArkLevelRepository {
     pub fn new(db: &Database) -> Self {
         let collection = db.collection("maa_level");
         Self { collection }
+    }
+
+    pub async fn query_all_levels(&self) -> MaaResult<Vec<ArkLevel>> {
+        let cursor = self.collection.find(doc! {}).await?;
+        let result: Vec<ArkLevel> = cursor.try_collect().await?;
+        Ok(result)
     }
 
     pub async fn query_level_by_keyword(&self, keyword: &str) -> MaaResult<Vec<ArkLevel>> {

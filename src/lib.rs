@@ -1,9 +1,10 @@
 pub mod envs;
 pub mod repository;
+pub mod route;
 
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::{extract::State, response::IntoResponse};
 use envs::{db_uri, log_dir, log_prefix};
 use mongodb::Client;
 use repository::ark_level_repository::ArkLevelRepository;
@@ -25,6 +26,12 @@ pub enum MaaError {
 
     #[error("No default database found")]
     NoDefaultDBError,
+}
+
+impl IntoResponse for MaaError {
+    fn into_response(self) -> axum::http::Response<axum::body::Body> {
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
 }
 
 // We expect these env vars to be set at runtime so we can call expect here
