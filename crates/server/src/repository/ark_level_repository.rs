@@ -55,22 +55,23 @@ pub struct ArkLevelRepository {
 }
 
 impl ArkLevelRepository {
-    pub fn new(db: Database) -> Self {
+    pub fn new(db: &Database) -> Self {
         let collection = db.collection("maa_level");
         Self { collection }
     }
 
     pub async fn query_level_by_keyword(&self, keyword: &str) -> MaaResult<Vec<ArkLevel>> {
-        let filter = doc! {
+        let filter = doc! {"$regex": format!(".*{}.*",keyword),"$options": "i"};
+        let filter_doc = doc! {
             "or": [
-                {"stageId": {"$regex": format!("?{}", keyword),"$options": "i"}},
-                {"catThree": {"$regex": format!("?{}", keyword),"$options": "i"}},
-                {"catTwo": {"$regex": format!("?{}", keyword),"$options": "i"}},
-                {"catOne": {"$regex": format!("?{}", keyword),"$options": "i"}},
-                {"name": {"$regex": format!("?{}", keyword),"$options": "i"}}
+                {"stageId": &filter},
+                {"catThree": &filter},
+                {"catTwo": &filter},
+                {"catOne": &filter},
+                {"name": &filter}
             ]
         };
-        let cursor = self.collection.find(filter).await?;
+        let cursor = self.collection.find(filter_doc).await?;
         let result: Vec<ArkLevel> = cursor.try_collect().await?;
         Ok(result)
     }

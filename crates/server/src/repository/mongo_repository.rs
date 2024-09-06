@@ -3,7 +3,6 @@ use mongodb::{Client, Database};
 use crate::{envs::db_uri, MaaError, MaaResult};
 
 pub struct MongoRepository {
-    client: Client,
     db: Database,
 }
 
@@ -15,6 +14,6 @@ impl MongoRepository {
             .default_database()
             .ok_or(MaaError::NoDefaultDBError)?;
 
-        Ok(Self { client, db })
+        Ok(Self { db })
     }
 }
