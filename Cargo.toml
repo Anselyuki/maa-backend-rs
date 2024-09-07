@@ -4,8 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# Server basics
 axum = "0.7.5"
 tokio = { version = "1.40.0", features = ["rt-multi-thread"] }
+tower = "0.5.0"
+tower-http = { version = "0.5.2", features = ["cors"] }
+http = "1.1.0"
+local-ip-address = "0.6.2"
+bb8 = "0.8.5"
 
 # Logging
 tracing = "0.1.40"
@@ -16,7 +22,7 @@ tracing-subscriber = "0.3.18"
 git2 = "0.19.0"
 
 # serde 序列化
-serde = { version = "1.0.209", features = ["derive"] }
+serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
 
 # HTTP 客户端
@@ -24,11 +30,17 @@ reqwest = { version = "0.12.7", features = ["json"] }
 
 # Error handling
 thiserror = "1.0.63"
+
+# MongoDB
 mongodb = { version = "3.1.0", features = ["compat-3-0-0"] }
 chrono = "0.4.38"
 bson = "2.11.0"
 
+# Redis
+redis = { version = "0.26.1", features = ["tokio-comp"] }
+
 futures = "0.3.30"
+
 
 [lints.clippy]
 allow_attributes_without_reason = "warn"

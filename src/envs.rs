@@ -23,3 +23,7 @@ pub fn log_prefix() -> MaaResult<String> {
 pub fn db_uri() -> MaaResult<String> {
     get_env("DB_URI")
 }
+
+pub fn redis_uri() -> MaaResult<String> {
+    get_env("REDIS_URI")
+}
