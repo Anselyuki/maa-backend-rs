@@ -14,6 +14,7 @@ use repository::{
     ark_level_repository::ArkLevelRepository, redis_connection_manager::RedisConnectionManager,
 };
 use thiserror::Error;
+use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 
 pub type MaaResult<T> = Result<T, MaaError>;
@@ -48,16 +49,31 @@ impl IntoResponse for MaaError {
 
 // We expect these env vars to be set at runtime so we can call expect here
 #[allow(clippy::expect_used)]
-pub fn init_logger() -> WorkerGuard {
-    let log_dir = log_dir().expect("LOG_DIR is not set");
-    let log_prefix = log_prefix().expect("LOG_PREFIX is not set");
+pub fn init_logger() -> Option<WorkerGuard> {
+    let log_dir = log_dir();
+    let log_prefix = log_prefix();
 
-    let log_writer = tracing_appender::rolling::daily(log_dir, log_prefix);
-    let (appender, guard) = tracing_appender::non_blocking(log_writer);
+    #[cfg(debug_assertions)]
+    let log_level = Level::DEBUG;
+    #[cfg(not(debug_assertions))]
+    let log_level = Level::INFO;
 
-    tracing_subscriber::fmt().with_writer(appender).init();
-
-    guard
+    match (log_dir, log_prefix) {
+        (Ok(dir), Ok(prefix)) => {
+            let log_writer = tracing_appender::rolling::daily(dir, prefix);
+            let (appender, guard) = tracing_appender::non_blocking(log_writer);
+            tracing_subscriber::fmt()
+                .with_max_level(log_level)
+                .with_writer(appender)
+                .init();
+            Some(guard)
+        }
+        _ => {
+            println!("Error getting env vars for logging, using stdout");
+            tracing_subscriber::fmt().with_max_level(log_level).init();
+            None
+        }
+    }
 }
 
 pub struct AppState {
@@ -76,6 +92,8 @@ impl AppState {
         let db = client
             .default_database()
             .ok_or(MaaError::NoDefaultDBError)?;
+
+        tracing::info!("Connected to database: {}", db.name());
 
         let ark_level_repository = ArkLevelRepository::new(&db);
 

@@ -1,4 +1,4 @@
-use std::{future::Future, net::SocketAddr, pin::Pin};
+use std::{future::Future, net::SocketAddr, pin::Pin, sync::Arc};
 
 use axum::{
     body::Body,
@@ -9,7 +9,7 @@ use http::StatusCode;
 use redis::AsyncCommands;
 use tower::{Layer, Service};
 
-use crate::{util::request_ext::RequestExt, MaaAppState};
+use crate::{util::request_ext::RequestExt, AppState};
 
 #[derive(Clone)]
 pub struct AccessLimitLayer {
@@ -56,7 +56,11 @@ where
         let ip = request.get_ip_addr(remote_addr);
         let request_uri = request.uri().to_string();
         let key = format!("{}{}", ip, request_uri);
-        let state = request.extensions().get::<MaaAppState>().cloned().unwrap();
+        let state = request
+            .extensions()
+            .get::<Arc<AppState>>()
+            .cloned()
+            .unwrap();
 
         let limits = self.limits;
         let seconds = self.seconds;
@@ -83,6 +87,8 @@ where
             };
 
             let count = count.unwrap_or(0);
+
+            tracing::debug!("Count: {}, limits: {}", count, limits);
 
             if count >= limits {
                 return Ok(StatusCode::TOO_MANY_REQUESTS.into_response());
