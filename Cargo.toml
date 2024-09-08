@@ -40,6 +40,10 @@ bson = "2.11.0"
 redis = { version = "0.26.1", features = ["tokio-comp"] }
 
 futures = "0.3.30"
+validator = { version = "0.18.1", features = ["derive"] }
+bcrypt = "0.15.1"
+uuid = { version = "1.10.0", features = ["v4"] }
+jsonwebtokens = "1.2.0"
 
 
 [lints.clippy]

@@ -38,7 +38,9 @@ where
 {
     type Response = S::Response;
     type Error = S::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = Pin<
+        Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>,
+    >;
 
     fn poll_ready(
         &mut self,
@@ -73,7 +75,9 @@ where
                 Ok(con) => con,
                 Err(e) => {
                     tracing::error!("Failed to get redis connection: {}", e);
-                    return Ok(StatusCode::INTERNAL_SERVER_ERROR.into_response());
+                    return Ok(
+                        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                    );
                 }
             };
 
@@ -82,7 +86,9 @@ where
                 Ok(c) => c,
                 Err(e) => {
                     tracing::error!("Failed to get count from redis: {}", e);
-                    return Ok(StatusCode::INTERNAL_SERVER_ERROR.into_response());
+                    return Ok(
+                        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                    );
                 }
             };
 
@@ -94,7 +100,8 @@ where
                 return Ok(StatusCode::TOO_MANY_REQUESTS.into_response());
             }
 
-            let _: Result<(), _> = redis_con.set_ex(&key, count + 1, seconds).await;
+            let _: Result<(), _> =
+                redis_con.set_ex(&key, count + 1, seconds).await;
             let response = inner.await?;
             Ok(response)
         })

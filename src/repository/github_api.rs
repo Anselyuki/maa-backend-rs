@@ -50,7 +50,11 @@ impl Default for GithubApi {
 }
 
 impl GithubApi {
-    pub fn new(token: Option<String>, owner: String, repo: String) -> GithubApi {
+    pub fn new(
+        token: Option<String>,
+        owner: String,
+        repo: String,
+    ) -> GithubApi {
         let mut header_map = HeaderMap::new();
         // 默认的两个请求头, 用于指定接受的数据类型和用户代理
         header_map.append(
@@ -85,7 +89,8 @@ impl GithubApi {
         );
 
         // 发送带有必要身份验证和头信息的 GET 请求
-        let mut request_builder = self.client.get(url).headers(self.default_headers.clone());
+        let mut request_builder =
+            self.client.get(url).headers(self.default_headers.clone());
         if let Some(token) = &self.token {
             request_builder = request_builder.bearer_auth(token);
         }
@@ -110,7 +115,8 @@ impl GithubApi {
             self.api_url, self.owner, self.repo, sha
         );
 
-        let mut request_builder = self.client.get(url).headers(self.default_headers.clone());
+        let mut request_builder =
+            self.client.get(url).headers(self.default_headers.clone());
         if let Some(token) = &self.token {
             request_builder = request_builder.bearer_auth(token);
         }

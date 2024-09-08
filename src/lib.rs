@@ -2,16 +2,23 @@ pub mod envs;
 pub mod middleware;
 pub mod repository;
 pub mod route;
+pub mod service;
 pub mod util;
 
 use std::sync::Arc;
+use std::{borrow::Cow, fmt::Write};
 
-use axum::{extract::State, response::IntoResponse};
+use axum::{
+    extract::State,
+    response::{IntoResponse, Response},
+};
 use bb8::Pool;
 use envs::{db_uri, log_dir, log_prefix, redis_uri};
+use http::StatusCode;
 use mongodb::Client;
 use repository::{
-    ark_level_repository::ArkLevelRepository, redis_connection_manager::RedisConnectionManager,
+    ark_level_repository::ArkLevelRepository,
+    redis_connection_manager::RedisConnectionManager,
 };
 use thiserror::Error;
 use tracing::Level;
@@ -21,6 +28,10 @@ pub type MaaResult<T> = Result<T, MaaError>;
 
 #[derive(Error, Debug)]
 pub enum MaaError {
+    /**
+     * Internal errors
+     */
+
     #[error("Error getting env var: {0}")]
     EnvError(#[from] std::env::VarError),
 
@@ -38,12 +49,83 @@ pub enum MaaError {
 
     #[error("Error getting redis connection: {0}")]
     RedisPoolError(#[from] bb8::RunError<redis::RedisError>),
+
+    #[error("Error hashing password: {0}")]
+    BcryptError(#[from] bcrypt::BcryptError),
+
+    #[error("Error parsing int: {0}")]
+    ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error("Jwt error: {0}")]
+    JsonWebTokensError(#[from] jsonwebtokens::error::Error),
+
+    /**
+     * Business errors
+     */
+
+    #[error("用户不存在或密码错误")]
+    LoginFail,
+
+    #[error("用户未启用")]
+    UserNotEnabled,
+
+    #[error("JWT验证失败")]
+    JwtVerifyFailed,
+
+    #[error("用户id不存在")]
+    NoneUserId,
+
+    #[error("Validate失败: {0}")]
+    ValidationError(#[from] validator::ValidationErrors),
 }
 
 impl IntoResponse for MaaError {
     fn into_response(self) -> axum::http::Response<axum::body::Body> {
-        tracing::error!("{}", self);
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        match &self {
+            MaaError::LoginFail => Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .body(self.to_string().into())
+                .unwrap_or_default(),
+            MaaError::UserNotEnabled => Response::builder()
+                .status(10003)
+                .body(self.to_string().into())
+                .unwrap_or_default(),
+            MaaError::NoneUserId => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(self.to_string().into())
+                .unwrap_or_default(),
+            MaaError::ValidationError(errors) => {
+                let field_errors = errors.field_errors();
+                let mut error_msg = String::new();
+                for (field, errors) in field_errors {
+                    for error in errors {
+                        let message = match error.message {
+                            Some(ref msg) => match msg {
+                                Cow::Borrowed(msg) => msg.to_owned(),
+                                Cow::Owned(msg) => msg,
+                            },
+                            None => "Validation failed",
+                        };
+                        if let Err(e) =
+                            writeln!(error_msg, "{}: {}", field, message)
+                        {
+                            tracing::error!(
+                                "Error writing error message: {}",
+                                e
+                            );
+                        }
+                    }
+                }
+                Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(error_msg.into())
+                    .unwrap_or_default()
+            }
+            _ => {
+                tracing::error!("{}", self);
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        }
     }
 }
 
@@ -100,8 +182,10 @@ impl AppState {
         // 初始化redis连接
         let redis_uri = redis_uri()?;
         let redis_client = redis::Client::open(redis_uri)?;
-        let redis_connection_manager = RedisConnectionManager::new(redis_client);
-        let redis_pool = Pool::builder().build(redis_connection_manager).await?;
+        let redis_connection_manager =
+            RedisConnectionManager::new(redis_client);
+        let redis_pool =
+            Pool::builder().build(redis_connection_manager).await?;
 
         Ok(Self {
             ark_level_repository,

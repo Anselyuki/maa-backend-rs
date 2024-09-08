@@ -15,7 +15,10 @@ impl ManageConnection for RedisConnectionManager {
         self.redis_client.get_multiplexed_tokio_connection().await
     }
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
+    async fn is_valid(
+        &self,
+        conn: &mut Self::Connection,
+    ) -> Result<(), Self::Error> {
         conn.send_packed_command(&redis::cmd("PING")).await?;
         Ok(())
     }
