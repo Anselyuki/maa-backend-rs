@@ -4,7 +4,7 @@ use axum::{handler::Handler, routing::get, Extension, Router};
 use maa_backend::{
     init_logger,
     middleware::{access_limit::AccessLimitLayer, cors_middleware},
-    route::ark_level_handler::get_levels,
+    route::{ark_level_handler::get_levels, user_handler::get_user_router},
     AppState,
 };
 
@@ -23,6 +23,7 @@ async fn main() {
             "/arknights/level",
             get(get_levels.layer(AccessLimitLayer::new(10, 60))),
         )
+        .nest("/user", get_user_router())
         .layer(cors_middleware())
         // for getting app state in middleware
         .layer(Extension(Arc::clone(&app_state)))

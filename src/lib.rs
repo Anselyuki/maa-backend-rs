@@ -7,7 +7,6 @@ pub mod util;
 
 use std::sync::Arc;
 
-use axum::extract::State;
 use bb8::Pool;
 use envs::{db_uri, log_dir, log_prefix, redis_uri};
 use error::MaaError;
@@ -15,6 +14,11 @@ use mongodb::Client;
 use repository::{
     ark_level_repository::ArkLevelRepository,
     redis_connection_manager::RedisConnectionManager,
+    user_repository::UserRepository,
+};
+use service::{
+    jwt_service::JwtService, mail_service::MailService,
+    user_service::UserService,
 };
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
@@ -56,10 +60,11 @@ pub fn init_logger() -> Option<WorkerGuard> {
 
 pub struct AppState {
     pub ark_level_repository: ArkLevelRepository,
-    pub redis_cache: RedisCache,
+    pub user_service: UserService,
+    pub redis_cache: Arc<RedisCache>,
 }
 
-pub type MaaAppState = State<Arc<AppState>>;
+pub type MaaAppState = Arc<AppState>;
 
 impl AppState {
     pub async fn new() -> MaaResult<Self> {
@@ -84,9 +89,31 @@ impl AppState {
             Pool::builder().build(redis_connection_manager).await?;
 
         let redis_cache = RedisCache::new(redis_pool);
+        let redis_cache = Arc::new(redis_cache);
+
+        let jwt_service = JwtService::new()?;
+        let jwt_service = Arc::new(jwt_service);
+
+        #[cfg(debug_assertions)]
+        let no_send = true;
+        #[cfg(not(debug_assertions))]
+        let no_send = false;
+
+        let mail_service =
+            MailService::new(Arc::clone(&redis_cache), no_send).await?;
+        let mail_service = Arc::new(mail_service);
+
+        // 初始化用户服务
+        let user_repository = UserRepository::new(&db);
+        let user_service = UserService::new(
+            user_repository,
+            Arc::clone(&jwt_service),
+            Arc::clone(&mail_service),
+        );
 
         Ok(Self {
             ark_level_repository,
+            user_service,
             redis_cache,
         })
     }
