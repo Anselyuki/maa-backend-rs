@@ -46,3 +46,10 @@ pub fn jwt_expire_time() -> MaaResult<u64> {
         .map(|x| x.parse())
         .and_then(|x| x.map_err(Into::into))
 }
+
+// 验证码过期时间
+pub fn vcode_expire_time() -> MaaResult<u64> {
+    get_env("VCODE_EXPIRE_TIME")
+        .map(|x| x.parse())
+        .and_then(|x| x.map_err(Into::into))
+}

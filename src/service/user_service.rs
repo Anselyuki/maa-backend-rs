@@ -5,20 +5,23 @@ use validator::Validate;
 
 use crate::{
     envs::max_login_count,
-    repository::user_repository::UserRepository,
+    repository::user_repository::{MaaUser, UserRepository},
     route::{
-        request::user::{LoginRequest, RegisterRequest},
+        request::user::{
+            LoginRequest, RegisterRequest, SendRegistrationTokenRequest,
+        },
         response::user::{MaaLoginResponse, MaaUserInfo},
     },
     util::password_encoder::PasswordEncoder,
     MaaError, MaaResult,
 };
 
-use super::jwt_service::JwtService;
+use super::{jwt_service::JwtService, mail_service::MailService};
 
 pub struct UserService {
     user_repository: UserRepository,
     password_encoder: PasswordEncoder,
+    mail_service: Arc<MailService>,
     jwt_service: Arc<JwtService>,
     max_login: usize,
 }
@@ -27,6 +30,7 @@ impl UserService {
     pub fn new(
         user_repository: UserRepository,
         jwt_service: Arc<JwtService>,
+        mail_service: Arc<MailService>,
     ) -> Self {
         let password_encoder = PasswordEncoder::new();
         let max_login = max_login_count().unwrap_or(1);
@@ -34,6 +38,7 @@ impl UserService {
             user_repository,
             password_encoder,
             max_login,
+            mail_service,
             jwt_service,
         }
     }
@@ -98,9 +103,46 @@ impl UserService {
         Ok(resp)
     }
 
-    pub async fn register(req: RegisterRequest) -> MaaResult<MaaUserInfo> {
+    pub async fn register(
+        &self,
+        req: RegisterRequest,
+    ) -> MaaResult<MaaUserInfo> {
         req.validate()?;
 
-        todo!()
+        self.mail_service
+            .verify_vcode(&req.email, &req.registration_token)
+            .await?;
+
+        let encoded = self.password_encoder.encode(&req.password)?;
+
+        let user = MaaUser {
+            user_id: None,
+            user_name: req.user_name,
+            email: req.email,
+            password: encoded,
+            status: 1,
+            refresh_jwt_ids: vec![],
+        };
+
+        self.user_repository.save(user.clone()).await?;
+
+        Ok(user.into())
+    }
+
+    pub async fn send_registration_token(
+        &self,
+        req: SendRegistrationTokenRequest,
+    ) -> MaaResult<()> {
+        req.validate()?;
+
+        let user = self.user_repository.find_by_email(&req.email).await?;
+
+        if user.is_some() {
+            return Err(MaaError::RegistrationUserExist);
+        }
+
+        self.mail_service.send_vcode(&req.email).await?;
+
+        Ok(())
     }
 }

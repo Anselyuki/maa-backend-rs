@@ -25,3 +25,9 @@ pub struct RegisterRequest {
     #[validate(length(min = 1, message = "请输入验证码"))]
     pub registration_token: String,
 }
+
+#[derive(Deserialize, Validate, Debug)]
+pub struct SendRegistrationTokenRequest {
+    #[validate(email(message = "邮箱格式错误"))]
+    pub email: String,
+}

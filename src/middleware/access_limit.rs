@@ -6,7 +6,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use http::StatusCode;
-use redis::AsyncCommands;
 use tower::{Layer, Service};
 
 use crate::{util::request_ext::RequestExt, AppState};
@@ -69,19 +68,8 @@ where
 
         let inner = self.inner.call(request);
         Box::pin(async move {
-            let redis_con = state.redis_pool.get().await;
-
-            let mut redis_con = match redis_con {
-                Ok(con) => con,
-                Err(e) => {
-                    tracing::error!("Failed to get redis connection: {}", e);
-                    return Ok(
-                        StatusCode::INTERNAL_SERVER_ERROR.into_response()
-                    );
-                }
-            };
-
-            let count: Result<Option<u32>, _> = redis_con.get(&key).await;
+            let count: Result<Option<u32>, _> =
+                state.redis_cache.get(&key).await;
             let count = match count {
                 Ok(c) => c,
                 Err(e) => {
@@ -101,7 +89,7 @@ where
             }
 
             let _: Result<(), _> =
-                redis_con.set_ex(&key, count + 1, seconds).await;
+                state.redis_cache.set_ex(&key, count + 1, seconds).await;
             let response = inner.await?;
             Ok(response)
         })
