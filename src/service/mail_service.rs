@@ -6,15 +6,21 @@ use tokio::{net::TcpStream, sync::Mutex};
 use tokio_rustls::client::TlsStream;
 
 use crate::{
-    envs::vcode_expire_time,
+    envs::{
+        mail_host, mail_password, mail_port, mail_username, vcode_expire_time,
+    },
     util::{handlebars_util::render_vcode_email, redis_cache::RedisCache},
     MaaError, MaaResult,
 };
 
+enum MailClient {
+    SmtpClient(Mutex<SmtpClient<TlsStream<TcpStream>>>),
+    MockClient,
+}
+
 pub struct MailService {
-    mail_client: Mutex<SmtpClient<TlsStream<TcpStream>>>,
+    mail_client: MailClient,
     redis_cache: Arc<RedisCache>,
-    no_send: bool,
     vcode_expire: u64,
 }
 
@@ -23,12 +29,36 @@ impl MailService {
         redis_cache: Arc<RedisCache>,
         no_send: bool,
     ) -> MaaResult<Self> {
-        let mail_client = SmtpClientBuilder::new("sss", 111).connect().await?;
+        let mail_client = if no_send {
+            MailClient::MockClient
+        } else {
+            let smtp_client: Result<_, MaaError> = {
+                let host = mail_host()?;
+                let port = mail_port()?;
+                let username = mail_username()?;
+                let password = mail_password()?;
+                let smtp_client = SmtpClientBuilder::new(host, port)
+                    .credentials((username, password))
+                    .connect()
+                    .await?;
+                Ok(smtp_client)
+            };
+
+            match smtp_client {
+                Ok(smtp_client) => {
+                    MailClient::SmtpClient(Mutex::new(smtp_client))
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to init mail service: {}", e);
+                    tracing::warn!("Using mock mail service");
+                    MailClient::MockClient
+                }
+            }
+        };
         let vcode_expire = vcode_expire_time().unwrap_or(300);
         Ok(Self {
-            mail_client: Mutex::new(mail_client),
+            mail_client,
             redis_cache,
-            no_send,
             vcode_expire,
         })
     }
@@ -57,21 +87,24 @@ impl MailService {
             .map(char::from)
             .collect::<String>();
 
-        if self.no_send {
-            tracing::warn!(
-                "Email not sent, no_send enabled, vcode is {}",
-                vcode
-            );
-        } else {
-            let mail_content = render_vcode_email(&vcode)?;
-            let mail = MessageBuilder::new()
-                .to(email)
-                .subject("Maa Backend Center 验证码")
-                .html_body(&mail_content);
+        match &self.mail_client {
+            MailClient::SmtpClient(client) => {
+                let mail_content = render_vcode_email(&vcode)?;
+                let mail = MessageBuilder::new()
+                    .to(email)
+                    .subject("Maa Backend Center 验证码")
+                    .html_body(&mail_content);
 
-            let mut mail_client = self.mail_client.lock().await;
-            mail_client.send(mail).await?;
-        }
+                let mut mail_client = client.lock().await;
+                mail_client.send(mail).await?;
+            }
+            MailClient::MockClient => {
+                tracing::warn!(
+                    "Email not sent, no_send enabled, vcode is {}",
+                    vcode
+                );
+            }
+        };
 
         self.redis_cache
             .set_ex(

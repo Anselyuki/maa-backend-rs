@@ -54,8 +54,12 @@ uuid = { version = "1.10.0", features = ["v4"] }
 # email
 mail-send = "0.4.9"
 tokio-rustls = "0.26.0"
+
 rand = "0.8.5"
+
+# Template engine
 handlebars = "6.1.0"
+
 axum-macros = "0.4.1"
 
 

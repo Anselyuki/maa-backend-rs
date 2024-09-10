@@ -53,3 +53,22 @@ pub fn vcode_expire_time() -> MaaResult<u64> {
         .map(|x| x.parse())
         .and_then(|x| x.map_err(Into::into))
 }
+
+// 邮件服务
+pub fn mail_host() -> MaaResult<String> {
+    get_env("MAIL_HOST")
+}
+
+pub fn mail_port() -> MaaResult<u16> {
+    get_env("MAIL_PORT")
+        .map(|x| x.parse())
+        .and_then(|x| x.map_err(Into::into))
+}
+
+pub fn mail_username() -> MaaResult<String> {
+    get_env("MAIL_USERNAME")
+}
+
+pub fn mail_password() -> MaaResult<String> {
+    get_env("MAIL_PASSWORD")
+}
